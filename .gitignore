@@ -126,3 +126,8 @@ pyvenv.cfg
 .idea/
 *.iml
 *.iws
+
+# custom
+.DS_Store
+.vscode/
+
