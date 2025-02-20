@@ -28,21 +28,17 @@ def normalize_filenames_in_directory(directory):  # 디렉토리 내 파일 이�
             normalize_path(str(child_dir_path))  # 디렉토리 경로를 정규화합니다.
         break  # 첫 번째 레벨의 디렉토리 탐색 후 종료합니다.
 
-
 class Watcher:  # 파일 시스템 변경을 감시하는 클래스
-    # 파일 시스템의 변경을 감시하는 watchdog 클래스입니다.
-    observer: Observer | None = None  # 모니터링을 위한 Observer 인스턴스
-    timer: rumps.Timer | None = None  # 주기적인 체크를 위한 Timer
-
-    def __init__(self, directory_to_watch):  # Watcher 클래스의 생성자
-        self.directory_to_watch = directory_to_watch  # 감시할 디렉토리를 설정합니다.
+    def __init__(self, directories_to_watch):  # Watcher 클래스의 생성자
+        self.directories_to_watch = directories_to_watch  # 감시할 디렉토리 목록을 설정합니다.
+        self.observer = Observer()  # 새로운 옵저버 인스턴스를 생성합니다.
 
     def run(self):  # 옵저버를 시작하는 메서드
         event_handler = Handler()  # 이벤트 핸들러 인스턴스를 생성합니다.
 
-        self.observer and self.observer.stop()  # 기존 옵저버가 있다면 중지합니다.
-        self.observer = Observer()  # 새로운 옵저버 인스턴스를 생성합니다.
-        self.observer.schedule(event_handler, self.directory_to_watch, recursive=True)  # 이벤트 핸들러를 예약합니다.
+        for directory in self.directories_to_watch:  # 각 디렉토리에 대해
+            self.observer.schedule(event_handler, directory, recursive=True)  # 이벤트 핸들러를 예약합니다.
+
         self.observer.start()  # 옵저버를 시작합니다.
 
         def _maintainer(timer: rumps.Timer):  # 옵저버 상태를 유지하는 내부 메서드
@@ -60,7 +56,6 @@ class Watcher:  # 파일 시스템 변경을 감시하는 클래스
             pass
         finally:
             self.timer and self.timer.stop()  # 타이머를 중지합니다.
-
 
 class Handler(FileSystemEventHandler):  # 파일 시스템 이벤트 핸들러 클래스
     # 파일 시스템 이벤트에 반응하여 적절한 조치를 취하는 이벤트 핸들러 클래스입니다.
@@ -93,14 +88,29 @@ class JasoRumpsApp(rumps.App):  # macOS 메뉴 막대 애플리케이션 클래�
             window = rumps.Window(title="자소", message="한글 자소분리를 방지할 폴더 주소를 입력해주세요.", dimensions=(200, 20))  # 입력 창을 표시합니다.
             window.icon = self.icon_path  # 아이콘을 설정합니다.
             response = window.run()  # 입력 창을 실행합니다.
+
+            # 사용자 home 디렉토리 가져오기
+            home_path = os.path.expanduser("~")
+
+            # Construct paths to Documents, Downloads, and Desktop
+            documents_path = os.path.join(home_path, "Documents")
+            downloads_path = os.path.join(home_path, "Downloads")
+            desktop_path = os.path.join(home_path, "Desktop")
+
+            # 기본 경로 목록 생성
+            paths_to_watch = [documents_path, downloads_path, desktop_path]  # 기본 경로 목록
+
             if response.clicked:  # 입력 창에서 확인 버튼을 클릭한 경우
                 directory_path = response.text  # 입력된 폴더 경로를 가져옵니다.
-                if not os.path.isdir(directory_path):  # 입력된 경로가 디렉토리가 아닌 경우
-                    rumps.alert("유효하지 않은 주소입니다.", icon_path=self.icon_path)  # 경고 메시지를 표시합니다.
-                else:
-                    rumps.alert("폴더 주소가 설정되었습니다. 이제부터 해당 폴더에서 자동으로 한글의 자소분리가 방지됩니다.", icon_path=self.icon_path)  # 성공 메시지를 표시합니다.
-                    self.watcher = Watcher(response.text)  # 감시기를 초기화합니다.
-                    self.watcher.run()  # 감시기를 시작합니다.
+
+                if os.path.isdir(directory_path):  # 입력된 경로가 유효한 디렉토리인 경우
+                    paths_to_watch.append(directory_path)  # 유효한 경로를 목록에 추가합니다
+
+                # 경고 메시지를 표시합니다.
+                rumps.alert("이제부터 지정 폴더에서는 자동으로 한글의 자소분리가 방지됩니다.", icon_path=self.icon_path)  # 성공 메시지를 표시합니다.
+                self.watcher = Watcher(paths_to_watch)  # 감시기를 초기화합니다.
+                self.watcher.run()  # 감시기를 시작합니다.
+
         except Exception as e:  # 예외가 발생한 경우
             rumps.alert(f"오류: {str(e)}")  # 오류 메시지를 표시합니다.
 
