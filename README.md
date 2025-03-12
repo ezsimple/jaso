@@ -4,6 +4,7 @@ mac OSX 사용자들을 위한 한글 자소분리 방지 앱
 - macOS 15.3.0 에서 빌드&실행 성공 했습니다. (원본: https://github.com/hsol/jaso)
 - ~/Documents, ~/Downloads, ~/Desktop 아래의 파일은 자동으로 자소분리 방지가 됩니다.
 - 사용자 지정 폴더 1개가, 함께 자소분리 방지가 됩니다.
+- ~/.env의 JASO_DIRS=,로 지정한 폴더가 함께 자소분리 방지 됩니다.
 
 ## 버전
 python 3.11.0
@@ -15,6 +16,7 @@ pip install setuptools
 pip install py2app
 pip install rumps
 pip install watchdog
+pip install python-dotenv
 ```
 
 ## 앱 개발
@@ -26,6 +28,11 @@ python main.py
 ```
 # build.sh 을 참고하세요.
 python setup.py py2app
+```
+
+## 앱 디버깅
+```
+open jaso/dist/자소.app/Contents/MacOS/자소
 ```
 
 ## 앱 사용하기
