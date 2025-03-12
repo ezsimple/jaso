@@ -4,7 +4,15 @@ import unicodedata  # 유니코드 문자 정규화를 위한 unicodedata를 가
 import rumps  # macOS 메뉴 막대 애플리케이션 생성을 위한 rumps를 가져옵니다.
 from watchdog.events import FileSystemEventHandler  # 파일 시스템 이벤트를 처리하기 위한 FileSystemEventHandler를 가져옵니다.
 from watchdog.observers import Observer  # 파일 시스템 변경 사항을 모니터링하기 위한 Observer를 가져옵니다.
+import logging
 
+# 운영체제의 기본 인코딩이 ASCII로 설정된 경우 sys.stdin.reconfigure()를 사용해 UTF-8을 강제로 지정할 수 있습니다.
+import sys
+sys.stdin.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
+logging.basicConfig(filename='jaso_debug.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def normalize_path(path: str):  # 파일 경로를 NFC 유니코드 형식으로 정규화하는 함수
     # 주어진 파일 경로의 이름을 NFC 유니코드 형식으로 정규화하고 파일명을 변경합니다.
@@ -100,16 +108,28 @@ class JasoRumpsApp(rumps.App):  # macOS 메뉴 막대 애플리케이션 클래�
             # 기본 경로 목록 생성
             paths_to_watch = [documents_path, downloads_path, desktop_path]  # 기본 경로 목록
 
+            # ~/.env 를 통한 경로 추가
+            with open(os.path.join(home_path, ".env"), 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.startswith("JASO_DIRS="):
+                        JASO_DIRS = line.split("=")[1].strip()
+
+            if JASO_DIRS:
+                paths_to_watch.extend(JASO_DIRS.split(','))
+
+            # 앱 입력창을 통한 경로 추가
             if response.clicked:  # 입력 창에서 확인 버튼을 클릭한 경우
                 directory_path = response.text  # 입력된 폴더 경로를 가져옵니다.
 
-                if os.path.isdir(directory_path):  # 입력된 경로가 유효한 디렉토리인 경우
+                if directory_path and os.path.isdir(directory_path):  # 입력된 경로가 유효한 디렉토리인 경우
                     paths_to_watch.append(directory_path)  # 유효한 경로를 목록에 추가합니다
 
                 # 경고 메시지를 표시합니다.
                 rumps.alert("이제부터 지정 폴더에서는 자동으로 한글의 자소분리가 방지됩니다.", icon_path=self.icon_path)  # 성공 메시지를 표시합니다.
                 self.watcher = Watcher(paths_to_watch)  # 감시기를 초기화합니다.
                 self.watcher.run()  # 감시기를 시작합니다.
+        
+            print(paths_to_watch)
 
         except Exception as e:  # 예외가 발생한 경우
             rumps.alert(f"오류: {str(e)}")  # 오류 메시지를 표시합니다.
