@@ -109,13 +109,11 @@ class JasoRumpsApp(rumps.App):  # macOS 메뉴 막대 애플리케이션 클래�
             paths_to_watch = [documents_path, downloads_path, desktop_path]  # 기본 경로 목록
 
             # ~/.env 를 통한 경로 추가
-            with open(os.path.join(home_path, ".env"), 'r', encoding='utf-8') as f:
-                for line in f:
-                    if line.startswith("JASO_DIRS="):
-                        JASO_DIRS = line.split("=")[1].strip()
-
-            if JASO_DIRS:
-                paths_to_watch.extend(JASO_DIRS.split(','))
+            try:
+                with open(os.path.join(home_path, ".env"), encoding='utf-8') as f:
+                    paths_to_watch.extend(next((line.split('=')[1].strip().split(',') for line in f if line.startswith("JASO_DIRS=")), []))
+            except FileNotFoundError:
+                pass
 
             # 앱 입력창을 통한 경로 추가
             if response.clicked:  # 입력 창에서 확인 버튼을 클릭한 경우
@@ -126,6 +124,7 @@ class JasoRumpsApp(rumps.App):  # macOS 메뉴 막대 애플리케이션 클래�
 
                 # 경고 메시지를 표시합니다.
                 rumps.alert("이제부터 지정 폴더에서는 자동으로 한글의 자소분리가 방지됩니다.", icon_path=self.icon_path)  # 성공 메시지를 표시합니다.
+                rumps.alert(f"감시폴더: {', '.join(paths_to_watch)}", icon_path=self.icon_path)
                 self.watcher = Watcher(paths_to_watch)  # 감시기를 초기화합니다.
                 self.watcher.run()  # 감시기를 시작합니다.
         
