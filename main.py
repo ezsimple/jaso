@@ -6,7 +6,12 @@ from watchdog.events import FileSystemEventHandler  # 파일 시스템 이벤트
 from watchdog.observers import Observer  # 파일 시스템 변경 사항을 모니터링하기 위한 Observer를 가져옵니다.
 import logging
 
-# 운영체제의 기본 인코딩이 ASCII로 설정된 경우 sys.stdin.reconfigure()를 사용해 UTF-8을 강제로 지정할 수 있습니다.
+# HOME/.env 파일을 사용하도록 지정
+from dotenv import load_dotenv
+home_path = os.path.expanduser("~")
+load_dotenv(os.path.join(home_path, ".env"))
+
+# 운영체제의 기본 인코딩이 ASCII로 설정된 경우 sys.stdin.reconfigure()를 사용해 UTF-8을 강제로 지정.
 import sys
 sys.stdin.reconfigure(encoding='utf-8')
 sys.stdout.reconfigure(encoding='utf-8')
@@ -109,11 +114,8 @@ class JasoRumpsApp(rumps.App):  # macOS 메뉴 막대 애플리케이션 클래�
             paths_to_watch = [documents_path, downloads_path, desktop_path]  # 기본 경로 목록
 
             # ~/.env 를 통한 경로 추가
-            try:
-                with open(os.path.join(home_path, ".env"), encoding='utf-8') as f:
-                    paths_to_watch.extend(next((line.split('=')[1].strip().split(',') for line in f if line.startswith("JASO_DIRS=")), []))
-            except FileNotFoundError:
-                pass
+            JASO_DIRS=os.getenv('JASO_DIRS')
+            paths_to_watch.extend([p.strip() for p in JASO_DIRS.split(",")])
 
             # 앱 입력창을 통한 경로 추가
             if response.clicked:  # 입력 창에서 확인 버튼을 클릭한 경우
