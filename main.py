@@ -5,11 +5,7 @@ import rumps  # macOS 메뉴 막대 애플리케이션 생성을 위한 rumps를
 from watchdog.events import FileSystemEventHandler  # 파일 시스템 이벤트를 처리하기 위한 FileSystemEventHandler를 가져옵니다.
 from watchdog.observers import Observer  # 파일 시스템 변경 사항을 모니터링하기 위한 Observer를 가져옵니다.
 import logging
-
-# HOME/.env 파일을 사용하도록 지정
 from dotenv import load_dotenv
-home_path = os.path.expanduser("~")
-load_dotenv(os.path.join(home_path, ".env"))
 
 # 운영체제의 기본 인코딩이 ASCII로 설정된 경우 sys.stdin.reconfigure()를 사용해 UTF-8을 강제로 지정.
 import sys
@@ -113,7 +109,8 @@ class JasoRumpsApp(rumps.App):  # macOS 메뉴 막대 애플리케이션 클래�
             # 기본 경로 목록 생성
             paths_to_watch = [documents_path, downloads_path, desktop_path]  # 기본 경로 목록
 
-            # ~/.env 를 통한 경로 추가
+            # 자동변환 시작시 ~/.env (재)로드
+            load_dotenv(os.path.join(home_path, ".env"))
             JASO_DIRS=os.getenv('JASO_DIRS')
             paths_to_watch.extend([p.strip() for p in JASO_DIRS.split(",")])
 
