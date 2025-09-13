@@ -16,14 +16,22 @@ sys.stderr.reconfigure(encoding='utf-8')
 logging.basicConfig(filename='jaso_debug.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def normalize_path(path: str):  # 파일 경로를 NFC 유니코드 형식으로 정규화하는 함수
-    # NFC로 정규화한 경로 생성
-    normalized_path = unicodedata.normalize('NFC', path)
-    
-    # 경로가 변경되었는지 확인
-    if path != normalized_path:
-        # 수정된 경로로 변경
-        os.rename(path, normalized_path)
-        print(f"[+] {path} -> {normalized_path}")
+    try:
+        # NFC로 정규화한 경로 생성
+        normalized_path = unicodedata.normalize('NFC', path)
+        
+        # 경로가 변경되었는지 확인
+        if path != normalized_path:
+            # 수정된 경로로 변경
+            os.rename(path, normalized_path)
+            print(f"[+] 정규화 완료: {path} -> {normalized_path}")
+            logging.info(f"정규화 완료: {path} -> {normalized_path}")
+        else:
+            print(f"[=] 이미 정규화됨: {path}")
+            logging.info(f"이미 정규화됨: {path}")
+    except Exception as e:
+        print(f"[오류] 정규화 실패: {path} - {e}")
+        logging.error(f"정규화 실패: {path} - {e}")
 
 
 def normalize_filenames_in_directory(directory):  # 디렉토리 내 파일 이름을 정규화하는 함수
@@ -72,12 +80,26 @@ class Handler(FileSystemEventHandler):  # 파일 시스템 이벤트 핸들러 �
     # 파일 시스템 이벤트에 반응하여 적절한 조치를 취하는 이벤트 핸들러 클래스입니다.
     @staticmethod
     def on_any_event(event):  # 모든 파일 시스템 이벤트에 반응하는 메서드
-        if event.event_type == 'created':  # 파일이 생성된 경우
-            normalize_filenames_in_directory(event.src_path)  # 파일 이름을 정규화합니다.
-        elif event.event_type == 'modified':  # 파일이 수정된 경우
-            normalize_filenames_in_directory(event.src_path)  # 파일 이름을 정규화합니다.
-        elif event.event_type == 'moved':  # 파일이 이동된 경우
-            normalize_filenames_in_directory(event.dest_path)  # 파일 이름을 정규화합니다.
+        try:
+            if event.event_type == 'created':  # 파일이 생성된 경우
+                if not event.is_directory:  # 파일인 경우에만
+                    print(f"[감지] 파일 생성: {event.src_path}")
+                    logging.info(f"파일 생성 감지: {event.src_path}")
+                    normalize_path(event.src_path)  # 해당 파일만 정규화
+            elif event.event_type == 'modified':  # 파일이 수정된 경우
+                if not event.is_directory:  # 파일인 경우에만
+                    print(f"[감지] 파일 수정: {event.src_path}")
+                    logging.info(f"파일 수정 감지: {event.src_path}")
+                    normalize_path(event.src_path)  # 해당 파일만 정규화
+            elif event.event_type == 'moved':  # 파일이 이동된 경우
+                if not event.is_directory:  # 파일인 경우에만
+                    print(f"[감지] 파일 이동: {event.src_path} -> {event.dest_path}")
+                    logging.info(f"파일 이동 감지: {event.src_path} -> {event.dest_path}")
+                    normalize_path(event.dest_path)  # 목적지 파일만 정규화
+        except Exception as e:
+            print(f"[오류] 이벤트 처리 중 오류: {e}")
+            print(f"[오류] 이벤트 정보: {event}")
+            logging.error(f"이벤트 처리 중 오류: {e} - 이벤트: {event}")
 
 
 class JasoRumpsApp(rumps.App):  # macOS 메뉴 막대 애플리케이션 클래스
@@ -113,8 +135,9 @@ class JasoRumpsApp(rumps.App):  # macOS 메뉴 막대 애플리케이션 클래�
 
             # 자동변환 시작시 ~/.env (재)로드
             load_dotenv(os.path.join(home_path, ".env"))
-            JASO_DIRS=os.getenv('JASO_DIRS')
-            paths_to_watch.extend([p.strip() for p in JASO_DIRS.split(",")])
+            JASO_DIRS = os.getenv('JASO_DIRS')
+            if JASO_DIRS:
+                paths_to_watch.extend([p.strip() for p in JASO_DIRS.split(",") if p.strip()])
 
             # 앱 입력창을 통한 경로 추가
             if response.clicked:  # 입력 창에서 확인 버튼을 클릭한 경우
@@ -128,8 +151,11 @@ class JasoRumpsApp(rumps.App):  # macOS 메뉴 막대 애플리케이션 클래�
                 rumps.alert(f"감시폴더: {', '.join(paths_to_watch)}", icon_path=self.icon_path)
                 self.watcher = Watcher(paths_to_watch)  # 감시기를 초기화합니다.
                 self.watcher.run()  # 감시기를 시작합니다.
+                
+                print(f"[시작] 감시 폴더 목록: {paths_to_watch}")
+                logging.info(f"감시 시작 - 폴더 목록: {paths_to_watch}")
         
-            print(paths_to_watch)
+            print(f"[앱] 감시 폴더 목록: {paths_to_watch}")
 
         except Exception as e:  # 예외가 발생한 경우
             rumps.alert(f"오류: {str(e)}")  # 오류 메시지를 표시합니다.
