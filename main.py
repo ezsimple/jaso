@@ -29,13 +29,15 @@ def normalize_path(path: str):  # 파일 경로를 NFC 유니코드 형식으로
 def normalize_filenames_in_directory(directory):  # 디렉토리 내 파일 이름을 정규화하는 함수
     # 주어진 디렉토리와 그 하위 폴더에 있는 모든 파일의 이름을 NFC로 정규화합니다.
     for dir_path, child_dir_names, filenames in os.walk(directory):  # 디렉토리를 탐색합니다.
+        # 현재 디렉터리에서 폴더 이름 정규화
+        for dir_name in child_dir_names:  # 하위 디렉토리를 반복합니다.
+            dir_path_full = os.path.join(dir_path, dir_name)  # 전체 디렉토리 경로를 가져옵니다.
+            normalize_path(str(dir_path_full))  # 디렉토리 경로를 정규화합니다.
+        
+        # 파일 이름 정규화
         for filename in filenames:  # 각 파일 이름을 반복합니다.
             file_path = os.path.join(dir_path, filename)  # 전체 파일 경로를 가져옵니다.
             normalize_path(str(file_path))  # 파일 경로를 정규화합니다.
-        for dir_name in child_dir_names:  # 하위 디렉토리를 반복합니다.
-            child_dir_path = os.path.join(dir_path, dir_name)  # 전체 디렉토리 경로를 가져옵니다.
-            normalize_path(str(child_dir_path))  # 디렉토리 경로를 정규화합니다.
-        break  # 첫 번째 레벨의 디렉토리 탐색 후 종료합니다.
 
 class Watcher:  # 파일 시스템 변경을 감시하는 클래스
     def __init__(self, directories_to_watch):  # Watcher 클래스의 생성자

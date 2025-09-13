@@ -1,3 +1,6 @@
+import sys
+# sys.setrecursionlimit(999)  # python이 기본적으로 제공하는 재귀 호출의 최대 깊이는 1000입니다.
+
 from setuptools import setup  # setuptools 모듈에서 setup 함수를 가져옵니다.
 
 APP = ['main.py']  # 애플리케이션의 진입점 파일을 지정합니다.
