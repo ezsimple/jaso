@@ -16,14 +16,14 @@ sys.stderr.reconfigure(encoding='utf-8')
 logging.basicConfig(filename='jaso_debug.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def normalize_path(path: str):  # 파일 경로를 NFC 유니코드 형식으로 정규화하는 함수
-    # 주어진 파일 경로의 이름을 NFC 유니코드 형식으로 정규화하고 파일명을 변경합니다.
-    directory, name = os.path.split(path)  # 경로를 디렉토리와 파일 이름으로 나눕니다.
-    normalized_name = unicodedata.normalize('NFC', name)  # 파일 이름을 NFC 형식으로 정규화합니다.
-    if len(name) == len(normalized_name):  # 이름이 이미 정규화되어 있는지 확인합니다.
-        return  # 정규화된 경우 아무것도 하지 않습니다.
-
-    normalized_path = os.path.join(directory, normalized_name)  # 새로운 정규화된 경로를 생성합니다.
-    os.rename(path, normalized_path)  # 파일을 정규화된 경로로 이름을 변경합니다.
+    # NFC로 정규화한 경로 생성
+    normalized_path = unicodedata.normalize('NFC', path)
+    
+    # 경로가 변경되었는지 확인
+    if path != normalized_path:
+        # 수정된 경로로 변경
+        os.rename(path, normalized_path)
+        print(f"[+] {path} -> {normalized_path}")
 
 
 def normalize_filenames_in_directory(directory):  # 디렉토리 내 파일 이름을 정규화하는 함수
