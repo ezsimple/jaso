@@ -111,16 +111,23 @@ class JasoRumpsApp(rumps.App):  # macOS 메뉴 막대 애플리케이션 클래�
 
         self.watcher: Watcher | None = None  # 감시기를 초기화합니다.
         self.icon_path = icon_path  # 아이콘 경로를 저장합니다.
+        
+        # 앱 시작 시 자동으로 자동변환 시작
+        rumps.Timer(lambda _: self._start(_, show_window=False), 0.5).start()  # 앱 초기화 후 약간의 지연을 두고 자동 시작
 
     @rumps.clicked("자동변환 시작")  # "자동변환 시작" 버튼 클릭 이벤트 처리
-    def _start(self, _):  # 자동변환 시작 버튼 클릭 이벤트 처리 메서드
+    def _start(self, _, show_window=True):  # 자동변환 시작 버튼 클릭 이벤트 처리 메서드
         try:
             if self.watcher:  # 감시기가 이미 실행 중인 경우
                 self.watcher.stop()  # 감시기를 중지합니다.
-                rumps.alert(message="이미 실행 중이던 작업을 중단했습니다.", icon_path=self.icon_path)  # 경고 메시지를 표시합니다.
-            window = rumps.Window(title="자소", message="한글 자소분리를 방지할 폴더 주소를 입력해주세요.", dimensions=(200, 20))  # 입력 창을 표시합니다.
-            window.icon = self.icon_path  # 아이콘을 설정합니다.
-            response = window.run()  # 입력 창을 실행합니다.
+                if show_window:
+                    rumps.alert(message="이미 실행 중이던 작업을 중단했습니다.", icon_path=self.icon_path)  # 경고 메시지를 표시합니다.
+            
+            response = None
+            if show_window:  # 입력 창을 표시할 경우에만
+                window = rumps.Window(title="자소", message="한글 자소분리를 방지할 폴더 주소를 입력해주세요.", dimensions=(200, 20))  # 입력 창을 표시합니다.
+                window.icon = self.icon_path  # 아이콘을 설정합니다.
+                response = window.run()  # 입력 창을 실행합니다.
 
             # 사용자 home 디렉토리 가져오기
             home_path = os.path.expanduser("~")
@@ -140,25 +147,28 @@ class JasoRumpsApp(rumps.App):  # macOS 메뉴 막대 애플리케이션 클래�
                 paths_to_watch.extend([p.strip() for p in JASO_DIRS.split(",") if p.strip()])
 
             # 앱 입력창을 통한 경로 추가
-            if response.clicked:  # 입력 창에서 확인 버튼을 클릭한 경우
+            if show_window and response and response.clicked:  # 입력 창이 표시되었고 확인 버튼을 클릭한 경우
                 directory_path = response.text  # 입력된 폴더 경로를 가져옵니다.
 
                 if directory_path and os.path.isdir(directory_path):  # 입력된 경로가 유효한 디렉토리인 경우
                     paths_to_watch.append(directory_path)  # 유효한 경로를 목록에 추가합니다
 
-                # 경고 메시지를 표시합니다.
+            # 감시기 시작
+            self.watcher = Watcher(paths_to_watch)  # 감시기를 초기화합니다.
+            self.watcher.run()  # 감시기를 시작합니다.
+            
+            if show_window:  # 입력 창을 표시한 경우에만 알림 표시
                 rumps.alert("이제부터 지정 폴더에서는 자동으로 한글의 자소분리가 방지됩니다.", icon_path=self.icon_path)  # 성공 메시지를 표시합니다.
                 rumps.alert(f"감시폴더: {', '.join(paths_to_watch)}", icon_path=self.icon_path)
-                self.watcher = Watcher(paths_to_watch)  # 감시기를 초기화합니다.
-                self.watcher.run()  # 감시기를 시작합니다.
-                
-                print(f"[시작] 감시 폴더 목록: {paths_to_watch}")
-                logging.info(f"감시 시작 - 폴더 목록: {paths_to_watch}")
-        
-            print(f"[앱] 감시 폴더 목록: {paths_to_watch}")
+            
+            print(f"[시작] 감시 폴더 목록: {paths_to_watch}")
+            logging.info(f"감시 시작 - 폴더 목록: {paths_to_watch}")
 
         except Exception as e:  # 예외가 발생한 경우
-            rumps.alert(f"오류: {str(e)}")  # 오류 메시지를 표시합니다.
+            if show_window:
+                rumps.alert(f"오류: {str(e)}")  # 오류 메시지를 표시합니다.
+            print(f"[오류] {str(e)}")
+            logging.error(f"오류: {str(e)}")
 
     @rumps.clicked("종료")  # "종료" 버튼 클릭 이벤트 처리
     def _quit(self, _):  # 종료 버튼 클릭 이벤트 처리 메서드

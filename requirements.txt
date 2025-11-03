@@ -1,0 +1,7 @@
+# Core libraries
+python-dotenv
+rumps
+sets
+
+# Recommended GUI library
+PySide6
