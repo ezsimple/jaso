@@ -22,12 +22,19 @@ def normalize_path(path):
 ## 변경 대상 파일 및 폴더명 찾아서 normalize_path() 호출
 ####################################################################
 def normalize_filenames_in_directory(directory, recursive=False, target_extension=None):
-    for dirpath, dirnames, filenames in os.walk(directory):
-        # 현재 디렉터리에서 폴더 이름 정규화
-        for dirname in dirnames:
-            dir_path = os.path.join(dirpath, dirname)
-            normalize_path(dir_path)
+    if not recursive:
+        # 최상위 디렉토리의 바로 아래 항목만 처리
+        with os.scandir(directory) as it:
+            for entry in it:
+                if entry.is_dir(follow_symlinks=False):
+                    normalize_path(entry.path)
+                elif target_extension is None or entry.name.lower().endswith(target_extension.lower()):
+                    normalize_path(entry.path)
+        return
 
+    # 재귀 탐색: bottom-up으로 돌아야 하위 항목을 먼저 고친 뒤
+    # 부모 폴더를 고치므로 탐색 중 경로가 무효화되지 않는다.
+    for dirpath, dirnames, filenames in os.walk(directory, topdown=False):
         # 파일 이름 정규화
         for filename in filenames:
             file_path = os.path.join(dirpath, filename)
@@ -36,9 +43,10 @@ def normalize_filenames_in_directory(directory, recursive=False, target_extensio
             if target_extension is None or file_path.lower().endswith(target_extension.lower()):
                 normalize_path(file_path)
 
-        # 만약 recursive 옵션이 활성화되었으면, 하위 디렉터리의 탐색을 계속
-        if not recursive:
-            break
+        # 현재 디렉터리에서 폴더 이름 정규화
+        for dirname in dirnames:
+            dir_path = os.path.join(dirpath, dirname)
+            normalize_path(dir_path)
 
 ####################################################################
 ## 인자 설정 및 변경 코드 호출

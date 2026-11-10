@@ -9,11 +9,23 @@ from dotenv import load_dotenv
 
 # 운영체제의 기본 인코딩이 ASCII로 설정된 경우 sys.stdin.reconfigure()를 사용해 UTF-8을 강제로 지정.
 import sys
-sys.stdin.reconfigure(encoding='utf-8')
-sys.stdout.reconfigure(encoding='utf-8')
-sys.stderr.reconfigure(encoding='utf-8')
+try:
+    # 번들 앱(LSUIElement)에서는 stdin이 None일 수 있으므로 방어적으로 처리
+    if sys.stdin is not None:
+        sys.stdin.reconfigure(encoding='utf-8')
+    if sys.stdout is not None:
+        sys.stdout.reconfigure(encoding='utf-8')
+    if sys.stderr is not None:
+        sys.stderr.reconfigure(encoding='utf-8')
+except Exception:
+    pass
 
-logging.basicConfig(filename='jaso_debug.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+log_path = os.path.join(os.path.expanduser("~"), "Library", "Logs", "jaso_debug.log")
+try:
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    logging.basicConfig(filename=log_path, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+except Exception:
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def normalize_path(path: str):  # 파일 경로를 NFC 유니코드 형식으로 정규화하는 함수
     try:
@@ -36,16 +48,18 @@ def normalize_path(path: str):  # 파일 경로를 NFC 유니코드 형식으로
 
 def normalize_filenames_in_directory(directory):  # 디렉토리 내 파일 이름을 정규화하는 함수
     # 주어진 디렉토리와 그 하위 폴더에 있는 모든 파일의 이름을 NFC로 정규화합니다.
-    for dir_path, child_dir_names, filenames in os.walk(directory):  # 디렉토리를 탐색합니다.
-        # 현재 디렉터리에서 폴더 이름 정규화
-        for dir_name in child_dir_names:  # 하위 디렉토리를 반복합니다.
-            dir_path_full = os.path.join(dir_path, dir_name)  # 전체 디렉토리 경로를 가져옵니다.
-            normalize_path(str(dir_path_full))  # 디렉토리 경로를 정규화합니다.
-        
+    # bottom-up(topdown=False)으로 탐색해야 하위 항목을 먼저 고친 뒤
+    # 부모 폴더를 고치므로, 탐색 중 경로가 무효화되지 않습니다.
+    for dir_path, child_dir_names, filenames in os.walk(directory, topdown=False):  # 디렉토리를 탐색합니다.
         # 파일 이름 정규화
         for filename in filenames:  # 각 파일 이름을 반복합니다.
             file_path = os.path.join(dir_path, filename)  # 전체 파일 경로를 가져옵니다.
             normalize_path(str(file_path))  # 파일 경로를 정규화합니다.
+
+        # 현재 디렉터리에서 폴더 이름 정규화
+        for dir_name in child_dir_names:  # 하위 디렉토리를 반복합니다.
+            dir_path_full = os.path.join(dir_path, dir_name)  # 전체 디렉토리 경로를 가져옵니다.
+            normalize_path(str(dir_path_full))  # 디렉토리 경로를 정규화합니다.
 
 class Watcher:  # 파일 시스템 변경을 감시하는 클래스
     def __init__(self, directories_to_watch):  # Watcher 클래스의 생성자
@@ -78,24 +92,27 @@ class Watcher:  # 파일 시스템 변경을 감시하는 클래스
 
 class Handler(FileSystemEventHandler):  # 파일 시스템 이벤트 핸들러 클래스
     # 파일 시스템 이벤트에 반응하여 적절한 조치를 취하는 이벤트 핸들러 클래스입니다.
+    # 파일뿐만 아니라 폴더(디렉토리) 이름의 자소분리도 함께 보정합니다.
     @staticmethod
     def on_any_event(event):  # 모든 파일 시스템 이벤트에 반응하는 메서드
         try:
-            if event.event_type == 'created':  # 파일이 생성된 경우
-                if not event.is_directory:  # 파일인 경우에만
-                    print(f"[감지] 파일 생성: {event.src_path}")
-                    logging.info(f"파일 생성 감지: {event.src_path}")
-                    normalize_path(event.src_path)  # 해당 파일만 정규화
-            elif event.event_type == 'modified':  # 파일이 수정된 경우
-                if not event.is_directory:  # 파일인 경우에만
-                    print(f"[감지] 파일 수정: {event.src_path}")
-                    logging.info(f"파일 수정 감지: {event.src_path}")
-                    normalize_path(event.src_path)  # 해당 파일만 정규화
-            elif event.event_type == 'moved':  # 파일이 이동된 경우
-                if not event.is_directory:  # 파일인 경우에만
-                    print(f"[감지] 파일 이동: {event.src_path} -> {event.dest_path}")
-                    logging.info(f"파일 이동 감지: {event.src_path} -> {event.dest_path}")
-                    normalize_path(event.dest_path)  # 목적지 파일만 정규화
+            if event.event_type == 'created':  # 파일/폴더가 생성된 경우
+                print(f"[감지] 생성: {event.src_path} (dir={event.is_directory})")
+                logging.info(f"생성 감지: {event.src_path} (dir={event.is_directory})")
+                normalize_path(event.src_path)  # 해당 경로만 정규화
+            elif event.event_type == 'modified':  # 파일/폴더가 수정된 경우
+                if event.is_directory:
+                    # 디렉토리 modified 이벤트는 하위 항목 변경 시에도 함께
+                    # 발생하므로(버블링) 무시한다. 폴더 이름 자체가 바뀐 경우는
+                    # created/moved 이벤트로 처리된다.
+                    return
+                print(f"[감지] 파일 수정: {event.src_path}")
+                logging.info(f"파일 수정 감지: {event.src_path}")
+                normalize_path(event.src_path)  # 해당 파일만 정규화
+            elif event.event_type == 'moved':  # 파일/폴더가 이동된 경우
+                print(f"[감지] 이동: {event.src_path} -> {event.dest_path} (dir={event.is_directory})")
+                logging.info(f"이동 감지: {event.src_path} -> {event.dest_path} (dir={event.is_directory})")
+                normalize_path(event.dest_path)  # 목적지 경로만 정규화
         except Exception as e:
             print(f"[오류] 이벤트 처리 중 오류: {e}")
             print(f"[오류] 이벤트 정보: {event}")
@@ -152,6 +169,20 @@ class JasoRumpsApp(rumps.App):  # macOS 메뉴 막대 애플리케이션 클래�
 
                 if directory_path and os.path.isdir(directory_path):  # 입력된 경로가 유효한 디렉토리인 경우
                     paths_to_watch.append(directory_path)  # 유효한 경로를 목록에 추가합니다
+
+            # 존재하지 않는 경로는 감시 대상에서 제외 (업데이트 등으로 경로가 사라진 경우 대비)
+            paths_to_watch = [p for p in paths_to_watch if os.path.isdir(p)]
+            if not paths_to_watch:
+                raise ValueError("감시할 폴더가 없습니다. 경로를 확인해주세요.")
+
+            # 감시 시작 전, 기존에 자소분리된 채로 남아있는 파일/폴더명을 먼저 일괄 보정.
+            # (앱이 꺼져 있던 사이 - 예: macOS 업데이트/재부팅 - 쌓인 NFD 이름 처리)
+            for watched in paths_to_watch:
+                try:
+                    normalize_filenames_in_directory(watched)
+                except Exception as e:
+                    print(f"[경고] 시작 시 일괄 보정 실패: {watched} - {e}")
+                    logging.warning(f"시작 시 일괄 보정 실패: {watched} - {e}")
 
             # 감시기 시작
             self.watcher = Watcher(paths_to_watch)  # 감시기를 초기화합니다.
