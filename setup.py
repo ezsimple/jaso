@@ -10,7 +10,7 @@ OPTIONS = {  # py2app에 전달할 옵션을 정의합니다.
     'plist': {  # 애플리케이션의 plist 설정을 정의합니다.
         'LSUIElement': True,  # 메뉴 막대 애플리케이션으로 설정합니다.
     },
-    'packages': ['rumps'],  # 애플리케이션에 포함할 패키지 목록입니다.
+    'packages': ['rumps', 'watchdog', 'dotenv'],  # 애플리케이션에 포함할 패키지 목록입니다.
 }
 
 setup(  # setup 함수를 호출하여 애플리케이션을 설정합니다.
